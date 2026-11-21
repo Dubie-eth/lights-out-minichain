@@ -1,0 +1,41 @@
+{
+  "defaultNetwork": "mainnet",
+  "networks": {
+    "mainnet": {
+      "chainId": 4663,
+      "chainName": "Robinhood Chain",
+      "rpc": "https://rpc.mainnet.chain.robinhood.com",
+      "explorer": "https://explorer.chain.robinhood.com",
+      "explorerAlt": "https://robinhoodchain.blockscout.com",
+      "minichain": "0x0849D0c95F533025e5E50E69f66085536B15E688",
+      "scores": "0xb4486497F9f87dea4CCAeCB38006E9E732802D72",
+      "registry": "0x2D5199bd9383199AC0345D6429C9156251A8ac96",
+      "nativeCurrency": {
+        "name": "ETH",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "relayer": "",
+      "minter": "0x6Dda9e16dA6211c83165ADbc602A99bF95B3956a",
+      "implementation": "0x229880656541d02D3F5d59020da2e9dD3FAc3A47",
+      "renderer": "0xE909F66886F75cccB76C1DB52be5E9B68465C6eB",
+      "interpreter": "0xFa6b59ea53e9B3C0802D90bbF3B3eAd7f0c64Bfe"
+    },
+    "testnet": {
+      "chainId": 46630,
+      "chainName": "Robinhood Chain Testnet",
+      "rpc": "https://rpc.testnet.chain.robinhood.com",
+      "explorer": "https://explorer.testnet.chain.robinhood.com",
+      "minichain": "0xEc080E5744466AA9753FFfCf4DCdf794E5a3275D",
+      "scores": "0x408B2Ad48824f383B312223B46D85BB633c9AA45",
+      "registry": "0x84F6C808FA5c055B9912912FB1F5BBB10758Ac60",
+      "nativeCurrency": {
+        "name": "ETH",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "relayer": "",
+      "explorerAlt": "https://explorer.testnet.chain.robinhood.com"
+    }
+  }
+}

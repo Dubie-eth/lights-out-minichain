@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lights Out — MiniChain</title>
+<style>
+body {
+  background-color: #0b0b0f;
+  color: #d4af37;
+  margin: 0;
+  overflow-x: hidden;
+  text-align: center;
+  font-family: sans-serif;
+}
+h1 { margin: 8px 0 2px; font-size: 22px; color: #d4af37; }
+#status { margin: 2px; font-size: 16px; color: #d4af37; }
+canvas#board {
+  width: 320px; height: 320px; display: block; margin: 0 auto;
+  border: 2px solid #d4af37; background-color: transparent;
+  touch-action: none; user-select: none;
+  -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.row { display: flex; justify-content: center; gap: 12px; margin: 10px auto; align-items: center; }
+#restart, #daily {
+  width: 56px; height: 56px; font-size: 28px; line-height: 52px;
+  background-color: #0b0b0f; color: #d4af37; border: 2px solid #d4af37;
+  border-radius: 50%; text-align: center; font-family: sans-serif;
+  touch-action: none; user-select: none; cursor: pointer; padding: 0;
+}
+#daily { font-size: 11px; line-height: 1.1; padding: 8px; }
+#panel {
+  margin: 8px 16px 16px; padding: 10px 12px; border: 1px solid #3a3420;
+  border-radius: 8px; text-align: left; font-size: 13px; color: #c8b56a;
+}
+#panel button {
+  background: #0b0b0f; color: #d4af37; border: 1px solid #d4af37;
+  border-radius: 6px; padding: 6px 10px; margin: 4px 6px 0 0; cursor: pointer;
+  font-size: 13px;
+}
+#panel button:disabled { opacity: 0.45; cursor: default; }
+#panel .meta { font-size: 11px; color: #8a7a40; word-break: break-all; margin-top: 6px; }
+#netrow { margin-bottom: 4px; }
+#netrow a { color: #8a7a40; text-decoration: none; }
+#netrow a.active { color: #d4af37; font-weight: 700; }
+#msg { margin-top: 6px; min-height: 1.2em; color: #e6d08a; }
+#links { font-size: 11px; color: #8a7a40; margin-top: 8px; line-height: 1.5; word-break: break-all; }
+#links a { color: #c8b56a; text-decoration: none; }
+#links a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Lights Out</h1>
+  <div id="status">lights on: 0, moves: 0</div>
+</header>
+<canvas id="board" width="320" height="320"></canvas>
+<div class="row">
+  <button id="restart" title="New random board">&#8635;</button>
+  <button id="daily" title="Today's board">Daily</button>
+</div>
+<section id="panel">
+  <div id="netrow">Network:
+    <a id="net-mainnet" href="?network=mainnet">Mainnet</a>
+    ·
+    <a id="net-testnet" href="?network=testnet">Testnet</a>
+  </div>
+  <div id="chainline">daily seed <span id="seedlab">…</span></div>
+  <div id="bestlab">best on chain: …</div>
+  <div id="links"></div>
+  <div>
+    <button id="connect">Connect wallet</button>
+    <button id="submit" disabled>Submit score</button>
+  </div>
+  <div id="msg"></div>
+  <div class="meta" id="metalab">Scores are optional and honor-system. On mainnet, a relayer can cover host gas; if it is down, your wallet pays instead.</div>
+</section>
+<script>
+/* lights.js (from stage-b13, plus click support and a daily seed) */
+var module = { exports: {} };
+const fromRows = (rows) => {
+  return rows.map(row => row.split('').map(cell => cell === '1' ? 1 : 0));
+};
+const toggle = (g, x, y) => {
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return g.map(row => [...row]);
+  if (x < 0 || x >= g[0].length || y < 0 || y >= g.length) return g.map(row => [...row]);
+  const o = g.map(row => [...row]);
+  const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+  for (const [dy, dx] of directions) {
+    const ny = y + dy, nx = x + dx;
+    if (ny >= 0 && ny < o.length && nx >= 0 && nx < o[0].length) o[ny][nx] = 1 - o[ny][nx];
+  }
+  o[y][x] = 1 - o[y][x];
+  return o;
+};
+function countOn(g) {
+  let count = 0;
+  for (let y = 0; y < g.length; y++) for (let x = 0; x < g[y].length; x++) if (g[y][x] === 1) count++;
+  return count;
+}
+function isSolved(g) {
+  for (let y = 0; y < g.length; y++) for (let x = 0; x < g[y].length; x++) if (g[y][x] === 1) return false;
+  return true;
+}
+const scramble = (w, h, moves, rand) => {
+  const initialGrid = Array(h).fill().map(() => Array(w).fill(0));
+  if (moves === 0) return initialGrid;
+  let currentGrid = initialGrid;
+  for (let i = 0; i < moves; i++) {
+    currentGrid = toggle(currentGrid, Math.floor(rand() * w), Math.floor(rand() * h));
+  }
+  return currentGrid;
+};
+function newGame(grid) {
+  return { grid: grid.map(row => row.slice()), moves: 0, won: isSolved(grid) };
+}
+function press(st, x, y) {
+  if (st.won || !Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= 5 || y < 0 || y >= 5) return st;
+  const newGrid = toggle(st.grid, x, y);
+  return { grid: newGrid, moves: st.moves + 1, won: isSolved(newGrid) };
+}
+function cellAt(px, py, size, w, h) {
+  const x = Math.floor(px / size), y = Math.floor(py / size);
+  if (px < 0 || py < 0 || x >= w || y >= h) return null;
+  return { x, y };
+}
+function newRound(rand) {
+  const g = scramble(5, 5, 12, rand);
+  if (isSolved(g)) return newGame(toggle(g, 2, 2));
+  return newGame(g);
+}
+function statusText(st) {
+  if (st.won) return `solved in ${st.moves} moves`;
+  return `lights on: ${countOn(st.grid)}, moves: ${st.moves}`;
+}
+function bindTaps(el, size, w, h, onCell) {
+  let sx = 0, sy = 0;
+  el.addEventListener('touchstart', (e) => {
+    const rect = el.getBoundingClientRect();
+    sx = e.touches[0].clientX - rect.left;
+    sy = e.touches[0].clientY - rect.top;
+  }, { passive: false });
+  el.addEventListener('touchend', (e) => {
+    const rect = el.getBoundingClientRect();
+    const ex = e.changedTouches[0].clientX - rect.left;
+    const ey = e.changedTouches[0].clientY - rect.top;
+    if (Math.abs(ex - sx) < 12 && Math.abs(ey - sy) < 12) {
+      const cell = cellAt(sx * (el.width / rect.width), sy * (el.height / rect.height), size, w, h);
+      if (cell) onCell(cell.x, cell.y);
+    }
+    e.preventDefault();
+  }, { passive: false });
+  el.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+  el.addEventListener('click', (e) => {
+    const rect = el.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * (el.width / rect.width);
+    const py = (e.clientY - rect.top) * (el.height / rect.height);
+    const cell = cellAt(px, py, size, w, h);
+    if (cell) onCell(cell.x, cell.y);
+  });
+}
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+let CFG = null;
+let dailySeed = 0;
+let mode = 'daily';
+let account = null;
+let state = newRound(Math.random);
+
+function redraw() {
+  const ctx = document.getElementById('board').getContext('2d');
+  ctx.fillStyle = '#0b0b0f';
+  ctx.fillRect(0, 0, 320, 320);
+  for (let y = 0; y < 5; y++) {
+    for (let x = 0; x < 5; x++) {
+      ctx.fillStyle = state.grid[y][x] === 1 ? '#d4af37' : '#23232b';
+      ctx.fillRect(x * 64 + 4, y * 64 + 4, 56, 56);
+    }
+  }
+  document.getElementById('status').textContent = statusText(state);
+  document.getElementById('submit').disabled = !(state.won && account && dailySeed && mode === 'daily');
+}
+
+function onCell(x, y) { state = press(state, x, y); redraw(); }
+
+function startRandom() {
+  mode = 'random';
+  state = newRound(Math.random);
+  redraw();
+  say('Local random board. Submit is for the daily board.');
+}
+function startDaily() {
+  mode = 'daily';
+  const rand = dailySeed ? mulberry32(dailySeed >>> 0) : Math.random;
+  state = newRound(rand);
+  redraw();
+}
+
+function say(t) { document.getElementById('msg').textContent = t || ''; }
+
+function hexPad(s, n) {
+  s = s.replace(/^0x/i, '').toLowerCase();
+  return s.padStart(n, '0');
+}
+function encodeRead(target, dataHex, maxSteps) {
+  const data = dataHex.replace(/^0x/i, '');
+  const padded = data + '0'.repeat((64 - (data.length % 64)) % 64);
+  const bytesLen = (data.length / 2);
+  return '0x762c398f' +
+    hexPad(target, 64) +
+    hexPad((32 * 3).toString(16), 64) +
+    hexPad(Number(maxSteps).toString(16), 64) +
+    hexPad(bytesLen.toString(16), 64) +
+    padded;
+}
+function encodeTransact(target, value, dataHex, maxSteps) {
+  const data = dataHex.replace(/^0x/i, '');
+  const padded = data + '0'.repeat((64 - (data.length % 64)) % 64);
+  const bytesLen = data.length / 2;
+  return '0x9350425b' +
+    hexPad(target, 64) +
+    hexPad(Number(value).toString(16), 64) +
+    hexPad((32 * 4).toString(16), 64) +
+    hexPad(Number(maxSteps).toString(16), 64) +
+    hexPad(bytesLen.toString(16), 64) +
+    padded;
+}
+async function rpc(url, method, params) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error.message || JSON.stringify(body.error));
+  return body.result;
+}
+function decodeAbiBytes(ret) {
+  const h = ret.replace(/^0x/i, '');
+  if (h.length < 128) return '0x';
+  const offset = parseInt(h.slice(0, 64), 16) * 2;
+  const len = parseInt(h.slice(offset, offset + 64), 16);
+  return '0x' + h.slice(offset + 64, offset + 64 + len * 2);
+}
+function decodeUint(ret) {
+  const h = ret.replace(/^0x/i, '');
+  if (!h) return 0;
+  return Number(BigInt('0x' + h.slice(-64)));
+}
+
+async function refreshChain() {
+  if (!CFG) return;
+  const seedCall = encodeRead(CFG.scores, '0xc5e55f43', 100000);
+  const raw = await rpc(CFG.rpc, 'eth_call', [{ to: CFG.minichain, data: seedCall }, 'latest']);
+  const inner = decodeAbiBytes(raw);
+  dailySeed = decodeUint(inner) >>> 0;
+  document.getElementById('seedlab').textContent = String(dailySeed);
+  const bestData = '0xd8a9b916' + hexPad(dailySeed.toString(16), 64);
+  const bestRaw = await rpc(CFG.rpc, 'eth_call', [{ to: CFG.minichain, data: encodeRead(CFG.scores, bestData, 100000) }, 'latest']);
+  const bestInner = decodeAbiBytes(bestRaw);
+  const hh = bestInner.replace(/^0x/i, '').padStart(192, '0');
+  const player = '0x' + hh.slice(24, 64);
+  const moves = Number(BigInt('0x' + hh.slice(64, 128)));
+  const zero = /^0x0{40}$/i.test(player);
+  document.getElementById('bestlab').textContent = zero
+    ? 'best on chain: none yet'
+    : `best on chain: ${moves} moves by ${player.slice(0, 6)}…${player.slice(-4)}`;
+  if (mode === 'daily') startDaily();
+}
+
+async function connect() {
+  if (!window.ethereum) { say('No wallet found. You can still play locally.'); return; }
+  const hexId = '0x' + Number(CFG.chainId).toString(16);
+  try {
+    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hexId }] });
+  } catch (e) {
+    if (e && (e.code === 4902 || e.code === -32603)) {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: hexId,
+          chainName: CFG.chainName,
+          nativeCurrency: CFG.nativeCurrency,
+          rpcUrls: [CFG.rpc],
+          blockExplorerUrls: [CFG.explorer]
+        }]
+      });
+    } else { say(e.message || String(e)); return; }
+  }
+  const accs = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  account = accs[0];
+  document.getElementById('connect').textContent = account.slice(0, 6) + '…' + account.slice(-4);
+  say('Connected. Solve the daily board, then submit.');
+  redraw();
+}
+
+function toIntHex(n) {
+  const b = typeof n === 'bigint' ? n : BigInt(n);
+  return '0x' + b.toString(16);
+}
+async function walletSubmit(data) {
+  const txData = encodeTransact(CFG.scores, 0, data, 200000);
+  say('Confirm the transaction in your wallet (you pay host gas)…');
+  const hash = await window.ethereum.request({
+    method: 'eth_sendTransaction',
+    params: [{
+      from: account,
+      to: CFG.minichain,
+      data: txData,
+      value: '0x5af3107a4000' // 0.0001 ETH to cover internal fees via auto-deposit
+    }]
+  });
+  say('Submitted: ' + hash.slice(0, 10) + '… ' + (CFG.explorerAlt || CFG.explorer) + '/tx/' + hash);
+  setTimeout(refreshChain, 4000);
+  return hash;
+}
+async function relayerSubmit(data) {
+  const relayer = CFG.relayer;
+  if (!relayer || Number(CFG.chainId) !== 4663) {
+    throw new Error('no relayer');
+  }
+  const nonceHex = await rpc(CFG.rpc, 'eth_call', [{
+    to: CFG.minichain,
+    data: '0x7ecebe00' + hexPad(account, 64)
+  }, 'latest']);
+  const nonce = BigInt(nonceHex);
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 15 * 60);
+  const maxSteps = 200000n;
+  const maxFee = 10000000000000n; // 0.00001 ETH in-chain fee cap
+  const txn = {
+    from: account,
+    to: CFG.scores,
+    value: 0n,
+    nonce,
+    deadline,
+    maxSteps,
+    maxFee,
+    data
+  };
+  const domain = {
+    name: 'MiniChain',
+    version: '1',
+    chainId: Number(CFG.chainId),
+    verifyingContract: CFG.minichain
+  };
+  const types = {
+    Transaction: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'value', type: 'uint256' },
+      { name: 'nonce', type: 'uint256' },
+      { name: 'deadline', type: 'uint256' },
+      { name: 'maxSteps', type: 'uint256' },
+      { name: 'maxFee', type: 'uint256' },
+      { name: 'data', type: 'bytes' }
+    ]
+  };
+  const message = {
+    from: account,
+    to: CFG.scores,
+    value: toIntHex(0),
+    nonce: toIntHex(nonce),
+    deadline: toIntHex(deadline),
+    maxSteps: toIntHex(maxSteps),
+    maxFee: toIntHex(maxFee),
+    data
+  };
+  say('Sign the score in your wallet (the relayer pays host gas)…');
+  const signature = await window.ethereum.request({
+    method: 'eth_signTypedData_v4',
+    params: [account, JSON.stringify({
+      types: Object.assign({ EIP712Domain: [
+        { name: 'name', type: 'string' },
+        { name: 'version', type: 'string' },
+        { name: 'chainId', type: 'uint256' },
+        { name: 'verifyingContract', type: 'address' }
+      ] }, types),
+      domain,
+      primaryType: 'Transaction',
+      message
+    })]
+  });
+  say('Sending through the relayer…');
+  const res = await fetch(String(relayer).replace(/\/$/, ''), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      chainId: Number(CFG.chainId),
+      minichain: CFG.minichain,
+      transaction: {
+        from: account,
+        to: CFG.scores,
+        value: '0x0',
+        nonce: toIntHex(nonce),
+        deadline: toIntHex(deadline),
+        maxSteps: toIntHex(maxSteps),
+        maxFee: toIntHex(maxFee),
+        data
+      },
+      signature
+    })
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.ok) {
+    const err = new Error(body.error || ('relayer error ' + res.status));
+    err.code = body.code || 'relayer';
+    throw err;
+  }
+  const hash = body.txHash;
+  say('Submitted via relayer: ' + hash.slice(0, 10) + '… ' + (CFG.explorerAlt || CFG.explorer) + '/tx/' + hash);
+  setTimeout(refreshChain, 4000);
+  return hash;
+}
+async function submitScore() {
+  if (!state.won || !account || !dailySeed || mode !== 'daily') {
+    say('Solve today\'s daily board first, then submit.');
+    return;
+  }
+  const data = '0xa25b87da' + hexPad(dailySeed.toString(16), 64) + hexPad(Number(state.moves).toString(16), 64);
+  const canRelay = CFG.relayer && Number(CFG.chainId) === 4663;
+  if (canRelay) {
+    try {
+      await relayerSubmit(data);
+      return;
+    } catch (e) {
+      const msg = e && (e.message || String(e));
+      if (e && (e.code === 4001 || e.code === 'ACTION_REJECTED' || /user rejected|rejected the request/i.test(msg))) {
+        say('Signature cancelled.');
+        return;
+      }
+      say((msg || 'Relayer unavailable') + ' — falling back to your wallet.');
+    }
+  }
+  try {
+    await walletSubmit(data);
+  } catch (e) {
+    say(e.message || String(e));
+  }
+}
+
+document.getElementById('restart').addEventListener('click', startRandom);
+document.getElementById('daily').addEventListener('click', () => { startDaily(); say('Daily board for seed ' + dailySeed); });
+document.getElementById('connect').addEventListener('click', connect);
+document.getElementById('submit').addEventListener('click', submitScore);
+bindTaps(document.getElementById('board'), 64, 5, 5, onCell);
+redraw();
+
+fetch('config.json').then(r => r.json()).then(c => {
+  const wanted = new URLSearchParams(location.search).get('network');
+  const name = (wanted === 'testnet' || wanted === 'mainnet') ? wanted : (c.defaultNetwork || 'mainnet');
+  const net = (c.networks && c.networks[name]) ? c.networks[name] : c;
+  CFG = net;
+  const main = document.getElementById('net-mainnet');
+  const test = document.getElementById('net-testnet');
+  if (main && test) {
+    main.classList.toggle('active', name === 'mainnet');
+    test.classList.toggle('active', name === 'testnet');
+  }
+  document.getElementById('chainline').insertAdjacentText('afterbegin', (net.chainName || name) + ' · ');
+  const explorer = net.explorerAlt || net.explorer || '';
+  const link = (label, addr) => {
+    if (!addr) return '';
+    const href = explorer ? (explorer + '/address/' + addr) : '#';
+    return '<a href="' + href + '" target="_blank" rel="noopener">' + label + '</a>';
+  };
+  const parts = [
+    link('MiniChain #1', net.minichain),
+    link('scores', net.scores),
+    link('registry', net.registry),
+    link('minter', net.minter),
+    link('implementation', net.implementation)
+  ].filter(Boolean);
+  document.getElementById('links').innerHTML = parts.length ? ('Verified contracts: ' + parts.join(' · ')) : '';
+  document.getElementById('metalab').textContent =
+    (net.chainName || name) + ' · MiniChain ' + net.minichain +
+    ' · score guest ' + net.scores + ' · chain ' + net.chainId +
+    '. Scores are honor-system.' +
+    (net.relayer && Number(net.chainId) === 4663
+      ? ' The relayer can cover host gas; if it is down, your wallet pays instead.'
+      : ' Your wallet pays host gas to submit.');
+  return refreshChain();
+}).catch(e => say('Could not load config or chain state: ' + e.message));
+</script>
+</body></html>
