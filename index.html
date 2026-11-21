@@ -54,6 +54,23 @@ canvas#board {
 #links { font-size: 11px; color: #8a7a40; margin-top: 8px; line-height: 1.5; word-break: break-all; }
 #links a { color: #c8b56a; text-decoration: none; }
 #links a:hover { text-decoration: underline; }
+#wallet-picker { margin-top: 8px; }
+#wallet-picker[hidden] { display: none !important; }
+#wallet-picker a {
+  display: block;
+  background: #0b0b0f;
+  color: #d4af37;
+  border: 1px solid #d4af37;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 6px 0 0;
+  text-align: center;
+  text-decoration: none;
+  font-size: 14px;
+  min-height: 44px;
+  box-sizing: border-box;
+  line-height: 24px;
+}
 </style>
 </head>
 <body>
@@ -85,8 +102,15 @@ canvas#board {
     <button id="submit" disabled>Submit score</button>
   </div>
   <div id="msg"></div>
+    <div id="wallet-picker" hidden>
+      <div class="reason">No wallet was detected in this browser. If you are already in a wallet app, wait a moment and tap Connect again. Otherwise open this page in your wallet:</div>
+      <a data-wallet="okx" href="#">Open in OKX</a>
+      <a data-wallet="metamask" href="#">Open in MetaMask</a>
+      <a data-wallet="coinbase" href="#">Open in Coinbase Wallet</a>
+    </div>
   <div class="meta" id="metalab">Scores are optional and honor-system. On mainnet, a relayer can cover host gas; if it is down, your wallet pays instead.</div>
 </section>
+<script src="/lights-out-minichain/wallet.js"></script>
 <script>
 /* lights.js (from stage-b13, plus click support and a daily seed) */
 var module = { exports: {} };
@@ -288,29 +312,32 @@ async function refreshChain() {
 }
 
 async function connect() {
-  if (!window.ethereum) { say('No wallet found. You can still play locally.'); return; }
-  const hexId = '0x' + Number(CFG.chainId).toString(16);
-  try {
-    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hexId }] });
-  } catch (e) {
-    if (e && (e.code === 4902 || e.code === -32603)) {
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [{
-          chainId: hexId,
-          chainName: CFG.chainName,
-          nativeCurrency: CFG.nativeCurrency,
-          rpcUrls: [CFG.rpc],
-          blockExplorerUrls: [CFG.explorer]
-        }]
-      });
-    } else { say(e.message || String(e)); return; }
+  const W = window.MiniChainWallet;
+  const picker = document.getElementById('wallet-picker');
+  const provider = W.pickProvider();
+  if (!provider) {
+    W.showPicker(picker, true);
+    say('No wallet was detected in this browser. If you are already in a wallet app, wait a moment and tap Connect again. Otherwise pick a wallet below. You can still play locally.');
+    return;
   }
-  const accs = await window.ethereum.request({ method: 'eth_requestAccounts' });
-  account = accs[0];
-  document.getElementById('connect').textContent = account.slice(0, 6) + '…' + account.slice(-4);
-  say('Connected. Solve the daily board, then submit.');
-  redraw();
+  try {
+    // First awaited wallet RPC is eth_requestAccounts (no prior await).
+    const result = await W.requestAccountsAndSwitch(CFG || W.defaultChainCfg(), provider);
+    account = result.account;
+    W.showPicker(picker, false);
+    document.getElementById('connect').textContent = account.slice(0, 6) + '…' + account.slice(-4);
+    say(result.chainOk
+      ? 'Connected. Solve the daily board, then submit.'
+      : 'Connected. Switch your wallet to Robinhood Chain to submit a score.');
+    redraw();
+  } catch (e) {
+    if (e && e.code === 'NO_WALLET') {
+      W.showPicker(picker, true);
+      say('No wallet was detected in this browser. You can still play locally, or pick a wallet below.');
+      return;
+    }
+    say(W.errorText(e));
+  }
 }
 
 function toIntHex(n) {
@@ -320,7 +347,7 @@ function toIntHex(n) {
 async function walletSubmit(data) {
   const txData = encodeTransact(CFG.scores, 0, data, 200000);
   say('Confirm the transaction in your wallet (you pay host gas)…');
-  const hash = await window.ethereum.request({
+  const hash = await (window.MiniChainWallet.getActiveProvider() || window.ethereum).request({
     method: 'eth_sendTransaction',
     params: [{
       from: account,
@@ -385,7 +412,7 @@ async function relayerSubmit(data) {
     data
   };
   say('Sign the score in your wallet (the relayer pays host gas)…');
-  const signature = await window.ethereum.request({
+  const signature = await (window.MiniChainWallet.getActiveProvider() || window.ethereum).request({
     method: 'eth_signTypedData_v4',
     params: [account, JSON.stringify({
       types: Object.assign({ EIP712Domain: [
@@ -436,7 +463,16 @@ async function submitScore() {
     return;
   }
   const data = '0xa25b87da' + hexPad(dailySeed.toString(16), 64) + hexPad(Number(state.moves).toString(16), 64);
-  const canRelay = CFG.relayer && Number(CFG.chainId) === 4663;
+  let canRelay = CFG.relayer && Number(CFG.chainId) === 4663;
+  if (canRelay) {
+    try {
+      const health = await fetch(String(CFG.relayer).replace(/\/$/, ''));
+      const h = await health.json();
+      canRelay = !!(health.ok && h && h.ok && h.relayerConfigured !== false && BigInt(h.budgetRemainingWei || '0') > 0n);
+    } catch (e) {
+      canRelay = false;
+    }
+  }
   if (canRelay) {
     try {
       await relayerSubmit(data);
@@ -453,7 +489,7 @@ async function submitScore() {
   try {
     await walletSubmit(data);
   } catch (e) {
-    say(e.message || String(e));
+    say(window.MiniChainWallet.errorText(e));
   }
 }
 

@@ -84,6 +84,24 @@ label.choice { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; 
 .badge.open { border-color: #d4af37; color: #d4af37; }
 .addr { font-size: 11px; color: #8a7a40; word-break: break-all; overflow-wrap: anywhere; margin-top: 4px; }
 #msg { margin-top: 6px; min-height: 1.2em; color: #e6d08a; }
+
+#wallet-picker { margin-top: 8px; }
+#wallet-picker[hidden] { display: none !important; }
+#wallet-picker a {
+  display: block;
+  background: #0b0b0f;
+  color: #d4af37;
+  border: 1px solid #d4af37;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 6px 0 0;
+  text-align: center;
+  text-decoration: none;
+  font-size: 14px;
+  min-height: 44px;
+  box-sizing: border-box;
+  line-height: 24px;
+}
 </style>
 </head>
 <body>
@@ -114,6 +132,12 @@ label.choice { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; 
     </div>
     <div class="reason" id="mint-reason">Connect a wallet on Robinhood Chain to mint.</div>
     <div id="msg"></div>
+    <div id="wallet-picker" hidden>
+      <div class="reason">No wallet was detected in this browser. If you are already in a wallet app, wait a moment and tap Connect again. Otherwise open this page in your wallet:</div>
+      <a data-wallet="okx" href="#">Open in OKX</a>
+      <a data-wallet="metamask" href="#">Open in MetaMask</a>
+      <a data-wallet="coinbase" href="#">Open in Coinbase Wallet</a>
+    </div>
   </section>
 
   <section class="panel">
@@ -141,6 +165,7 @@ label.choice { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; 
     </div>
   </section>
 </div>
+<script src="/lights-out-minichain/wallet.js"></script>
 <script>
 const CFG_URL = '../config.json';
 const FIRST_FEES = 10n ** 16n; // 0.01 ETH
@@ -417,42 +442,42 @@ function syncExpiryUi() {
 }
 
 async function ensureChain() {
-  if (!window.ethereum) throw new Error('No wallet found.');
-  const hexId = '0x' + Number(CFG.chainId).toString(16);
-  try {
-    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hexId }] });
-  } catch (e) {
-    if (e && (e.code === 4902 || e.code === -32603)) {
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [{
-          chainId: hexId,
-          chainName: CFG.chainName,
-          nativeCurrency: CFG.nativeCurrency,
-          rpcUrls: [CFG.rpc],
-          blockExplorerUrls: [CFG.explorer]
-        }]
-      });
-    } else {
-      throw e;
-    }
-  }
-  const net = await window.ethereum.request({ method: 'eth_chainId' });
-  chainOk = Number(net) === Number(CFG.chainId);
+  const W = window.MiniChainWallet;
+  const p = W.getActiveProvider();
+  if (!p) throw new Error('No wallet found.');
+  const netHex = await W.switchOrAddChain(p, CFG || W.defaultChainCfg());
+  const net = await p.request({ method: 'eth_chainId' });
+  chainOk = Number(net) === Number(CFG && CFG.chainId ? CFG.chainId : netHex);
 }
 
 async function connect() {
-  if (!window.ethereum) { say('No wallet found.'); return; }
+  const W = window.MiniChainWallet;
+  const picker = document.getElementById('wallet-picker');
+  const provider = W.pickProvider();
+  if (!provider) {
+    W.showPicker(picker, true);
+    say('No wallet was detected in this browser. If you are already in a wallet app, wait a moment and tap Connect again. Otherwise pick a wallet below.');
+    return;
+  }
   try {
-    await ensureChain();
-    const accs = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    account = accs[0];
+    // First awaited wallet RPC is eth_requestAccounts (no prior await).
+    const result = await W.requestAccountsAndSwitch(CFG || W.defaultChainCfg(), provider);
+    account = result.account;
+    chainOk = result.chainOk;
+    W.showPicker(picker, false);
     document.getElementById('connect').textContent = shortAddr(account);
-    say('Connected as ' + shortAddr(account) + '.');
+    say(chainOk
+      ? ('Connected as ' + shortAddr(account) + '.')
+      : ('Connected as ' + shortAddr(account) + '. Switch your wallet to Robinhood Chain (4663) to mint.'));
     renderStats();
     renderLists();
   } catch (e) {
-    say(e.message || String(e));
+    if (e && e.code === 'NO_WALLET') {
+      W.showPicker(picker, true);
+      say('No wallet was detected in this browser. Open this page in your wallet app, or pick one below.');
+      return;
+    }
+    say(W.errorText(e));
   }
 }
 
@@ -461,14 +486,14 @@ async function mint() {
   const data = '0x6a627842' + hexPad(account, 64);
   say('Confirm mint in your wallet…');
   try {
-    const hash = await window.ethereum.request({
+    const hash = await (window.MiniChainWallet.getActiveProvider() || window.ethereum).request({
       method: 'eth_sendTransaction',
       params: [{ from: account, to: CFG.minter, data }]
     });
     say('Mint submitted: ' + hash.slice(0, 10) + '…');
     setTimeout(refresh, 4000);
   } catch (e) {
-    say(e.message || String(e));
+    say(window.MiniChainWallet.errorText(e));
   }
 }
 
@@ -491,14 +516,14 @@ async function launchToken(id) {
   const data = '0x8a90cc07' + hexPad(id.toString(16), 64) + hexPad(expiry.toString(16), 64);
   say('Confirm launch of #' + id + ' in your wallet. The end date cannot be changed.');
   try {
-    const hash = await window.ethereum.request({
+    const hash = await (window.MiniChainWallet.getActiveProvider() || window.ethereum).request({
       method: 'eth_sendTransaction',
       params: [{ from: account, to: CFG.registry, data }]
     });
     say('Launch submitted: ' + hash.slice(0, 10) + '…');
     setTimeout(refresh, 4000);
   } catch (e) {
-    say(e.message || String(e));
+    say(window.MiniChainWallet.errorText(e));
   }
 }
 
@@ -532,15 +557,23 @@ fetch(CFG_URL).then(r => r.json()).then(c => {
   ].filter(Boolean).join(' · ');
   const q = new URLSearchParams(location.search).get('address');
   if (q) document.getElementById('lookup').value = q;
-  if (window.ethereum) {
-    window.ethereum.on && window.ethereum.on('accountsChanged', (accs) => {
-      account = accs && accs[0] ? accs[0] : null;
-      document.getElementById('connect').textContent = account ? shortAddr(account) : 'Connect wallet';
-      renderStats();
-      renderLists();
-    });
-    window.ethereum.on && window.ethereum.on('chainChanged', () => { location.reload(); });
-  }
+  const W = window.MiniChainWallet;
+  W.onAccountsChanged = (accs) => {
+    account = accs && accs[0] ? accs[0] : null;
+    document.getElementById('connect').textContent = account ? shortAddr(account) : 'Connect wallet';
+    renderStats();
+    renderLists();
+  };
+  W.onChainChanged = (id) => {
+    // Do not reload — a reload here aborts connect() after wallet_switchEthereumChain.
+    try {
+      const n = id != null ? Number(id) : NaN;
+      if (CFG && Number.isFinite(n)) chainOk = n === Number(CFG.chainId);
+    } catch (e) {}
+    renderStats();
+    renderLists();
+  };
+  if (W.pickProvider()) W.setActiveProvider(W.pickProvider());
   return refresh();
 }).catch(e => {
   document.getElementById('st-note').textContent = 'Could not load config: ' + (e.message || e);
