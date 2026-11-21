@@ -4,6 +4,8 @@ Playable in the browser. Daily scores can be submitted to Fathom's MiniChain #1 
 
 **Play:** https://dubie-eth.github.io/lights-out-minichain/
 
+**Mint & launch:** https://dubie-eth.github.io/lights-out-minichain/chains/
+
 ## Verified contracts (Robinhood mainnet)
 
 - [MiniChain #1](https://robinhoodchain.blockscout.com/address/0x0849D0c95F533025e5E50E69f66085536B15E688)
@@ -15,3 +17,5 @@ Playable in the browser. Daily scores can be submitted to Fathom's MiniChain #1 
 - [EVM interpreter](https://robinhoodchain.blockscout.com/address/0xFa6b59ea53e9B3C0802D90bbF3B3eAd7f0c64Bfe)
 
 Submitting a score on mainnet currently uses your wallet to pay host gas (a small auto-deposit covers the in-chain fee).
+
+The MiniChain contracts are experimental and unaudited.

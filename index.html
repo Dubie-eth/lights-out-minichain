@@ -12,6 +12,14 @@ body {
   text-align: center;
   font-family: sans-serif;
 }
+nav {
+  text-align: center;
+  font-size: 13px;
+  margin: 8px 0 4px;
+  color: #8a7a40;
+}
+nav a { color: #c8b56a; text-decoration: none; }
+nav a.active { color: #d4af37; font-weight: 700; }
 h1 { margin: 8px 0 2px; font-size: 22px; color: #d4af37; }
 #status { margin: 2px; font-size: 16px; color: #d4af37; }
 canvas#board {
@@ -49,6 +57,11 @@ canvas#board {
 </style>
 </head>
 <body>
+<nav>
+  <a class="active" href="./">Lights Out</a>
+  ·
+  <a href="chains/">Mint &amp; Launch</a>
+</nav>
 <header>
   <h1>Lights Out</h1>
   <div id="status">lights on: 0, moves: 0</div>

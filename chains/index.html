@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mint &amp; Launch — MiniChain</title>
+<style>
+body {
+  background-color: #0b0b0f;
+  color: #d4af37;
+  margin: 0;
+  overflow-x: hidden;
+  font-family: sans-serif;
+}
+.wrap { max-width: 440px; margin: 0 auto; padding: 8px 16px 24px; }
+nav {
+  text-align: center;
+  font-size: 13px;
+  margin: 8px 0 4px;
+  color: #8a7a40;
+}
+nav a { color: #c8b56a; text-decoration: none; }
+nav a.active { color: #d4af37; font-weight: 700; }
+h1 { margin: 4px 0 2px; font-size: 22px; color: #d4af37; text-align: center; }
+.sub { text-align: center; font-size: 13px; color: #c8b56a; margin: 0 0 8px; }
+.panel {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid #3a3420;
+  border-radius: 8px;
+  text-align: left;
+  font-size: 13px;
+  color: #c8b56a;
+}
+.panel h2 { margin: 0 0 8px; font-size: 14px; color: #d4af37; }
+.stat { display: flex; justify-content: space-between; gap: 12px; margin: 4px 0; }
+.stat span:last-child { color: #e6d08a; text-align: right; word-break: break-word; }
+button, .btn {
+  background: #0b0b0f;
+  color: #d4af37;
+  border: 1px solid #d4af37;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 6px 6px 0 0;
+  cursor: pointer;
+  font-size: 14px;
+  min-height: 44px;
+}
+button:disabled { opacity: 0.45; cursor: default; }
+input[type="text"], input[type="date"] {
+  background: #121218;
+  color: #e6d08a;
+  border: 1px solid #3a3420;
+  border-radius: 6px;
+  padding: 10px 8px;
+  font-size: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 4px 0;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+label.choice { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; }
+.warn { color: #e6d08a; font-size: 12px; margin: 8px 0; }
+.reason { color: #8a7a40; font-size: 12px; margin-top: 6px; min-height: 1.2em; }
+.meta { font-size: 11px; color: #8a7a40; word-break: break-word; margin-top: 8px; line-height: 1.5; }
+.meta a, .links a, .chain a { color: #c8b56a; text-decoration: none; }
+.links { font-size: 11px; color: #8a7a40; margin-top: 8px; line-height: 1.6; }
+.links a, .meta a, .chain a { display: inline-block; }
+.card {
+  border: 1px solid #3a3420;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 8px 0 0;
+}
+.card .id { color: #d4af37; font-weight: 700; }
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  border: 1px solid #3a3420;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 6px;
+  color: #c8b56a;
+}
+.badge.open { border-color: #d4af37; color: #d4af37; }
+.addr { font-size: 11px; color: #8a7a40; word-break: break-all; overflow-wrap: anywhere; margin-top: 4px; }
+#msg { margin-top: 6px; min-height: 1.2em; color: #e6d08a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a href="../">Lights Out</a>
+    ·
+    <a class="active" href="./">Mint &amp; Launch</a>
+  </nav>
+  <h1>Mint &amp; Launch</h1>
+  <p class="sub">Robinhood MiniChain registry</p>
+
+  <section class="panel" id="stats">
+    <h2>Live stats</h2>
+    <div class="stat"><span>Minting</span><span id="st-open">…</span></div>
+    <div class="stat"><span>Mintable now</span><span id="st-mintable">…</span></div>
+    <div class="stat"><span>Total supply</span><span id="st-supply">…</span></div>
+    <div class="stat"><span>MiniChain #1 fees</span><span id="st-fees">…</span></div>
+    <div class="stat"><span>Next slot</span><span id="st-next">…</span></div>
+    <div class="reason" id="st-note"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Mint a MiniChain</h2>
+    <div>
+      <button id="connect">Connect wallet</button>
+      <button id="mint" disabled>Mint</button>
+    </div>
+    <div class="reason" id="mint-reason">Connect a wallet on Robinhood Chain to mint.</div>
+    <div id="msg"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Launch a chain</h2>
+    <p class="warn">If you set an end date it must be at least 30 days from now, and it cannot be changed after launch. The default is never to expire.</p>
+    <label class="choice"><input type="radio" name="exp" value="0" checked> Never expires</label>
+    <label class="choice"><input type="radio" name="exp" value="date"> End on a date</label>
+    <input type="date" id="expdate" disabled>
+    <div class="reason" id="exp-reason"></div>
+
+    <p style="margin: 12px 0 4px;">Your MiniChains</p>
+    <div id="mine">Connect a wallet to see tokens you can launch.</div>
+
+    <p style="margin: 14px 0 4px;">All tokens</p>
+    <div class="meta">Look up any owner, or browse the collection.</div>
+    <input type="text" id="lookup" placeholder="0x… owner address" autocomplete="off" spellcheck="false">
+    <div id="all">Loading…</div>
+  </section>
+
+  <section class="panel">
+    <h2>Contracts</h2>
+    <div class="links" id="links"></div>
+    <div class="meta">
+      This code is experimental and <strong>unaudited</strong>. A MiniChain is a ledger inside one contract. There is no sequencer, and the owner of a token collects fees but cannot upgrade the implementation. Use at your own risk.
+    </div>
+  </section>
+</div>
+<script>
+const CFG_URL = '../config.json';
+const FIRST_FEES = 10n ** 16n; // 0.01 ETH
+const MINTS_PER_STEP = 50n;
+const MAX_SUPPLY = 512n;
+const MIN_LIFETIME = 30n * 24n * 60n * 60n;
+
+let CFG = null;
+let account = null;
+let chainOk = false;
+let cache = { open: false, mintable: 0n, supply: 0n, fees: 0n, granted: 0n, tokens: [] };
+
+function say(t) { document.getElementById('msg').textContent = t || ''; }
+function hexPad(s, n) {
+  s = String(s).replace(/^0x/i, '').toLowerCase();
+  return s.padStart(n, '0');
+}
+function toAddr(word) {
+  const h = String(word).replace(/^0x/i, '').padStart(64, '0');
+  return '0x' + h.slice(24, 64);
+}
+function checksum(addr) {
+  addr = addr.toLowerCase().replace(/^0x/, '');
+  // light display: keep lowercase if we lack keccak; browsers with ethereum may later checksum
+  return '0x' + addr;
+}
+function decodeUint(ret) {
+  const h = (ret || '0x').replace(/^0x/i, '');
+  if (!h) return 0n;
+  return BigInt('0x' + h.slice(-64));
+}
+function decodeBool(ret) { return decodeUint(ret) !== 0n; }
+function decodeAddr(ret) { return checksum('0x' + (ret || '').replace(/^0x/i, '').padStart(64, '0').slice(24)); }
+function decodeString(ret) {
+  const h = (ret || '0x').replace(/^0x/i, '');
+  if (h.length < 128) return '';
+  const offset = Number(BigInt('0x' + h.slice(0, 64))) * 2;
+  const len = Number(BigInt('0x' + h.slice(offset, offset + 64)));
+  if (!len) return '';
+  const hex = h.slice(offset + 64, offset + 64 + len * 2);
+  let s = '';
+  for (let i = 0; i < hex.length; i += 2) s += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+  return s;
+}
+function formatEth(wei) {
+  const neg = wei < 0n;
+  if (neg) wei = -wei;
+  const whole = wei / 10n ** 18n;
+  let frac = (wei % 10n ** 18n).toString().padStart(18, '0').replace(/0+$/, '');
+  if (frac.length > 8) frac = frac.slice(0, 8).replace(/0+$/, '');
+  const body = frac ? whole + '.' + frac : whole.toString();
+  return (neg ? '-' : '') + body + ' ETH';
+}
+function shortAddr(a) {
+  if (!a) return '';
+  return a.slice(0, 6) + '…' + a.slice(-4);
+}
+function explorerAddr(addr) {
+  const base = (CFG && (CFG.explorerAlt || CFG.explorer)) || '';
+  return base ? base + '/address/' + addr : '#';
+}
+function earned(fees) {
+  let count = 0n;
+  let each = FIRST_FEES;
+  let rem = fees;
+  while (count < MAX_SUPPLY - 1n && rem >= each * MINTS_PER_STEP) {
+    rem -= each * MINTS_PER_STEP;
+    count += MINTS_PER_STEP;
+    each *= 2n;
+  }
+  count += rem / each;
+  if (count > MAX_SUPPLY - 1n) count = MAX_SUPPLY - 1n;
+  return count;
+}
+function feesForEarned(target) {
+  let each = FIRST_FEES;
+  let count = 0n;
+  let fees = 0n;
+  while (count < target) {
+    const take = (target - count) < MINTS_PER_STEP ? (target - count) : MINTS_PER_STEP;
+    fees += take * each;
+    count += take;
+    each *= 2n;
+  }
+  return fees;
+}
+async function rpc(url, method, params) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
+  });
+  const body = await res.json();
+  if (body.error) throw new Error(body.error.message || JSON.stringify(body.error));
+  return body.result;
+}
+async function ethCall(to, data) {
+  return rpc(CFG.rpc, 'eth_call', [{ to, data }, 'latest']);
+}
+
+function nextSlotNote(open, mintable, supply, fees, granted) {
+  if (supply >= MAX_SUPPLY) return { short: 'cap reached (512)', detail: 'The cap of 512 MiniChains has been reached.' };
+  const earnedNow = earned(fees);
+  const allowed = 1n + granted + earnedNow;
+  const needEarned = supply - granted; // earned must reach this for allowed > supply
+  if (mintable > 0n) {
+    return { short: mintable + ' open now', detail: open ? (mintable + ' MiniChain' + (mintable === 1n ? '' : 's') + ' can be minted right now.') : '' };
+  }
+  if (needEarned < 0n) {
+    return { short: 'none', detail: 'No further slot can be earned yet.' };
+  }
+  const needFees = feesForEarned(needEarned);
+  const shortfall = needFees > fees ? needFees - fees : 0n;
+  const first50 = needEarned <= MINTS_PER_STEP;
+  const rate = first50 ? '0.01 ETH of fees on MiniChain #1 earns each of the first 50 chains.' : 'After the first 50, the fee per earned chain doubles every 50.';
+  if (!open) {
+    return {
+      short: shortfall === 0n ? 'ready, but closed' : formatEth(shortfall) + ' more in fees',
+      detail: (shortfall === 0n
+        ? 'Fees have already earned a slot, but minting is closed by the owner of MiniChain #1.'
+        : 'Minting is closed. Even after it opens, MiniChain #1 still needs ' + formatEth(shortfall) + ' more in fees. ' + rate)
+    };
+  }
+  return {
+    short: formatEth(shortfall) + ' more in fees',
+    detail: 'No slot is open. MiniChain #1 needs ' + formatEth(shortfall) + ' more in fees to earn the next chain. ' + rate
+  };
+}
+
+function mintReason() {
+  if (!account) return 'Connect a wallet on Robinhood Chain to mint.';
+  if (!chainOk) return 'Switch your wallet to Robinhood Chain (4663) to mint.';
+  const n = nextSlotNote(cache.open, cache.mintable, cache.supply, cache.fees, cache.granted);
+  if (cache.supply >= MAX_SUPPLY) return n.detail;
+  if (!cache.open) return n.detail || 'Minting is closed by the owner of MiniChain #1.';
+  if (cache.mintable === 0n) return n.detail;
+  return 'Mint a new MiniChain token to this wallet. Launching it is a second step, and is up to you.';
+}
+
+function renderStats() {
+  document.getElementById('st-open').textContent = cache.open ? 'open' : 'closed';
+  document.getElementById('st-mintable').textContent = cache.mintable.toString();
+  document.getElementById('st-supply').textContent = cache.supply.toString() + ' / 512';
+  document.getElementById('st-fees').textContent = formatEth(cache.fees);
+  const n = nextSlotNote(cache.open, cache.mintable, cache.supply, cache.fees, cache.granted);
+  document.getElementById('st-next').textContent = n.short;
+  document.getElementById('st-note').textContent = n.detail;
+  const mintBtn = document.getElementById('mint');
+  const canMint = !!(account && chainOk && cache.open && cache.mintable > 0n);
+  mintBtn.disabled = !canMint;
+  document.getElementById('mint-reason').textContent = mintReason();
+}
+
+function tokenCard(t, opts) {
+  const mine = account && t.owner.toLowerCase() === account.toLowerCase();
+  const launchable = !t.launched && mine && chainOk;
+  const badge = t.launched
+    ? '<span class="badge open">launched</span>'
+    : '<span class="badge">not launched</span>';
+  const name = t.name ? ' “' + t.name.replace(/[<>&]/g, '') + '”' : '';
+  const status = t.launched
+    ? 'This MiniChain is live.'
+    : (mine ? 'You can launch this MiniChain.' : 'The owner can launch this MiniChain.');
+  const btn = (!t.launched && (opts && opts.showLaunch))
+    ? '<div><button class="launch" data-id="' + t.id + '"' + (launchable ? '' : ' disabled') + '>Launch</button></div>'
+    : '';
+  return '<div class="card" data-id="' + t.id + '">' +
+    '<div><span class="id">#' + t.id + '</span>' + name + badge + '</div>' +
+    '<div class="addr">owner ' + (mine ? 'you · ' : '') +
+      '<a href="' + explorerAddr(t.owner) + '" target="_blank" rel="noopener">' + t.owner + '</a></div>' +
+    '<div class="addr">chainOf ' +
+      '<a href="' + explorerAddr(t.chain) + '" target="_blank" rel="noopener">' + t.chain + '</a></div>' +
+      (t.launched ? '' : '<div class="addr">reserved, not yet deployed</div>') +
+    '<div class="reason">' + status + '</div>' + btn +
+    '</div>';
+}
+
+function renderLists() {
+  const mine = cache.tokens.filter(t => account && t.owner.toLowerCase() === account.toLowerCase());
+  const mineEl = document.getElementById('mine');
+  if (!account) mineEl.textContent = 'Connect a wallet to see tokens you can launch.';
+  else if (!mine.length) mineEl.textContent = 'This wallet does not own a MiniChain token yet.';
+  else mineEl.innerHTML = mine.map(t => tokenCard(t, { showLaunch: true })).join('');
+
+  const q = (document.getElementById('lookup').value || '').trim();
+  let list = cache.tokens;
+  let note = '';
+  if (/^0x[0-9a-fA-F]{40}$/.test(q)) {
+    list = cache.tokens.filter(t => t.owner.toLowerCase() === q.toLowerCase());
+    note = list.length ? '' : '<div class="reason">No MiniChain tokens for that address.</div>';
+  }
+  document.getElementById('all').innerHTML = note + (list.map(t => tokenCard(t, { showLaunch: !!(account && chainOk) })).join('') || '<div class="reason">No tokens yet.</div>');
+  document.querySelectorAll('button.launch').forEach(btn => {
+    btn.addEventListener('click', () => launchToken(Number(btn.getAttribute('data-id'))));
+  });
+}
+
+async function loadTokens() {
+  const supply = Number(cache.supply);
+  const tokens = [];
+  for (let id = 1; id <= supply; id++) {
+    const [ownerRaw, launchedRaw, chainRaw, nameRaw] = await Promise.all([
+      ethCall(CFG.registry, '0x6352211e' + hexPad(id.toString(16), 64)),
+      ethCall(CFG.registry, '0x7fceed28' + hexPad(id.toString(16), 64)),
+      ethCall(CFG.registry, '0x4d075124' + hexPad(id.toString(16), 64)),
+      ethCall(CFG.registry, '0x051a2664' + hexPad(id.toString(16), 64))
+    ]);
+    tokens.push({
+      id,
+      owner: decodeAddr(ownerRaw),
+      launched: decodeBool(launchedRaw),
+      chain: decodeAddr(chainRaw),
+      name: decodeString(nameRaw)
+    });
+  }
+  cache.tokens = tokens;
+}
+
+async function refresh() {
+  if (!CFG) return;
+  try {
+    const [openRaw, mintableRaw, supplyRaw, feesRaw, grantedRaw] = await Promise.all([
+      ethCall(CFG.minter, '0x8f4bb497'),
+      ethCall(CFG.minter, '0x4bf365df'),
+      ethCall(CFG.registry, '0x18160ddd'),
+      ethCall(CFG.minichain, '0x13114a9d'),
+      ethCall(CFG.minter, '0x400571ba')
+    ]);
+    cache.open = decodeBool(openRaw);
+    cache.mintable = decodeUint(mintableRaw);
+    cache.supply = decodeUint(supplyRaw);
+    cache.fees = decodeUint(feesRaw);
+    cache.granted = decodeUint(grantedRaw);
+    await loadTokens();
+    renderStats();
+    renderLists();
+  } catch (e) {
+    document.getElementById('st-note').textContent = 'Could not read chain state: ' + (e.message || e);
+  }
+}
+
+function expiryValue() {
+  const never = document.querySelector('input[name="exp"]:checked').value === '0';
+  const reason = document.getElementById('exp-reason');
+  if (never) {
+    reason.textContent = 'This MiniChain will not have an end date.';
+    return 0n;
+  }
+  const v = document.getElementById('expdate').value;
+  if (!v) {
+    reason.textContent = 'Pick a date at least 30 days from now.';
+    return null;
+  }
+  // Interpret the date as 23:59:59 UTC, so a calendar day 30 days out is safely past MIN_LIFETIME in any timezone.
+  const ts = BigInt(Date.UTC(
+    Number(v.slice(0, 4)), Number(v.slice(5, 7)) - 1, Number(v.slice(8, 10)),
+    23, 59, 59
+  ) / 1000);
+  const min = BigInt(Math.floor(Date.now() / 1000)) + MIN_LIFETIME;
+  if (ts < min) {
+    reason.textContent = 'That date is too soon. The contract requires at least 30 days, and the end date cannot be changed later.';
+    return null;
+  }
+  reason.textContent = 'Ends at Unix time ' + ts.toString() + ' (23:59:59 UTC). This cannot be changed after launch.';
+  return ts;
+}
+
+function syncExpiryUi() {
+  const never = document.querySelector('input[name="exp"]:checked').value === '0';
+  const date = document.getElementById('expdate');
+  date.disabled = never;
+  date.style.display = never ? 'none' : 'block';
+  expiryValue();
+}
+
+async function ensureChain() {
+  if (!window.ethereum) throw new Error('No wallet found.');
+  const hexId = '0x' + Number(CFG.chainId).toString(16);
+  try {
+    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hexId }] });
+  } catch (e) {
+    if (e && (e.code === 4902 || e.code === -32603)) {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: hexId,
+          chainName: CFG.chainName,
+          nativeCurrency: CFG.nativeCurrency,
+          rpcUrls: [CFG.rpc],
+          blockExplorerUrls: [CFG.explorer]
+        }]
+      });
+    } else {
+      throw e;
+    }
+  }
+  const net = await window.ethereum.request({ method: 'eth_chainId' });
+  chainOk = Number(net) === Number(CFG.chainId);
+}
+
+async function connect() {
+  if (!window.ethereum) { say('No wallet found.'); return; }
+  try {
+    await ensureChain();
+    const accs = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    account = accs[0];
+    document.getElementById('connect').textContent = shortAddr(account);
+    say('Connected as ' + shortAddr(account) + '.');
+    renderStats();
+    renderLists();
+  } catch (e) {
+    say(e.message || String(e));
+  }
+}
+
+async function mint() {
+  if (!account || !chainOk || cache.mintable === 0n) return;
+  const data = '0x6a627842' + hexPad(account, 64);
+  say('Confirm mint in your wallet…');
+  try {
+    const hash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: account, to: CFG.minter, data }]
+    });
+    say('Mint submitted: ' + hash.slice(0, 10) + '…');
+    setTimeout(refresh, 4000);
+  } catch (e) {
+    say(e.message || String(e));
+  }
+}
+
+async function launchToken(id) {
+  const t = cache.tokens.find(x => x.id === id);
+  if (!t || !account || !chainOk) return;
+  if (t.owner.toLowerCase() !== account.toLowerCase()) {
+    say('Only the token owner can launch this MiniChain.');
+    return;
+  }
+  if (t.launched) {
+    say('This MiniChain is already launched.');
+    return;
+  }
+  const expiry = expiryValue();
+  if (expiry === null) {
+    say('Choose a valid end date, or pick “Never expires”.');
+    return;
+  }
+  const data = '0x8a90cc07' + hexPad(id.toString(16), 64) + hexPad(expiry.toString(16), 64);
+  say('Confirm launch of #' + id + ' in your wallet. The end date cannot be changed.');
+  try {
+    const hash = await window.ethereum.request({
+      method: 'eth_sendTransaction',
+      params: [{ from: account, to: CFG.registry, data }]
+    });
+    say('Launch submitted: ' + hash.slice(0, 10) + '…');
+    setTimeout(refresh, 4000);
+  } catch (e) {
+    say(e.message || String(e));
+  }
+}
+
+function minDateIso() {
+  const d = new Date(Date.now() + Number(MIN_LIFETIME + 24n * 60n * 60n) * 1000);
+  return d.toISOString().slice(0, 10);
+}
+
+document.getElementById('connect').addEventListener('click', connect);
+document.getElementById('mint').addEventListener('click', mint);
+document.querySelectorAll('input[name="exp"]').forEach(r => r.addEventListener('change', syncExpiryUi));
+document.getElementById('expdate').addEventListener('change', syncExpiryUi);
+document.getElementById('lookup').addEventListener('input', renderLists);
+document.getElementById('expdate').min = minDateIso();
+syncExpiryUi();
+
+fetch(CFG_URL).then(r => r.json()).then(c => {
+  CFG = (c.networks && c.networks.mainnet) ? c.networks.mainnet : c;
+  const explorer = CFG.explorerAlt || CFG.explorer || '';
+  const link = (label, addr) => {
+    if (!addr || !explorer) return '';
+    return '<a href="' + explorer + '/address/' + addr + '" target="_blank" rel="noopener">' + label + '</a>';
+  };
+  document.getElementById('links').innerHTML = [
+    link('MiniChain #1', CFG.minichain),
+    link('registry', CFG.registry),
+    link('minter', CFG.minter),
+    link('implementation', CFG.implementation),
+    link('renderer', CFG.renderer),
+    link('interpreter', CFG.interpreter)
+  ].filter(Boolean).join(' · ');
+  const q = new URLSearchParams(location.search).get('address');
+  if (q) document.getElementById('lookup').value = q;
+  if (window.ethereum) {
+    window.ethereum.on && window.ethereum.on('accountsChanged', (accs) => {
+      account = accs && accs[0] ? accs[0] : null;
+      document.getElementById('connect').textContent = account ? shortAddr(account) : 'Connect wallet';
+      renderStats();
+      renderLists();
+    });
+    window.ethereum.on && window.ethereum.on('chainChanged', () => { location.reload(); });
+  }
+  return refresh();
+}).catch(e => {
+  document.getElementById('st-note').textContent = 'Could not load config: ' + (e.message || e);
+});
+</script>
+</body></html>
